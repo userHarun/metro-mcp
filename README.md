@@ -16,27 +16,40 @@ A typed Model Context Protocol server and compact transit-data web app for Houst
 - Node.js 22 or newer
 - pnpm 11
 - A Houston METRO developer subscription for the GTFS and Transit Data products
-- A Cloudflare account only when deploying the hosted service
 
-## Local setup
+## Run the website
+
+From this repository:
 
 ```powershell
 pnpm install
 Copy-Item .dev.vars.example .dev.vars
-pnpm gtfs:setup:local
-pnpm dev:worker
 ```
 
-Set the real values in the ignored `.dev.vars` file:
+Add your METRO keys to the ignored `.dev.vars` file:
 
 ```dotenv
 METRO_GTFS_API_KEY=your-gtfs-key
 METRO_TRANSIT_DATA_API_KEY=your-transit-data-key
 ```
 
-The Worker and web app run together through Wrangler. `gtfs:setup:local` applies the D1 schema, downloads and converts Static GTFS, then seeds the local catalog. To work on the visual shell without live data, run `pnpm dev`.
+Prepare the local route and stop catalog once:
 
-## MCP clients
+```powershell
+pnpm gtfs:setup:local
+```
+
+Then start the website and MCP server together:
+
+```powershell
+pnpm dev:worker
+```
+
+Open [http://localhost:8787](http://localhost:8787). The landing page and arrivals showcase use the same local Worker as the MCP endpoint at `http://localhost:8787/mcp`.
+
+On later runs, only `pnpm dev:worker` is needed unless the GTFS catalog needs to be refreshed. `pnpm dev` starts the visual frontend alone on `http://localhost:5173`, but its live transit widget requires the Worker.
+
+## Connect an MCP client
 
 Build the packages and CLI first:
 
@@ -53,16 +66,28 @@ Claude Desktop configuration:
       "command": "node",
       "args": ["C:/absolute/path/to/metro-mcp/apps/cli/dist/index.js"],
       "env": {
-        "METRO_SERVICE_URL": "https://your-worker.example.workers.dev"
+        "METRO_SERVICE_URL": "http://localhost:8787"
       }
     }
   }
 }
 ```
 
-Cursor configuration uses the same `mcpServers` object. Hosted MCP clients can connect directly to `https://your-worker.example.workers.dev/mcp`.
+Keep `pnpm dev:worker` running while using this local configuration. Cursor can connect directly to the local Streamable HTTP endpoint:
 
-## Public surface
+```json
+{
+  "mcpServers": {
+    "houston-metro": {
+      "url": "http://localhost:8787/mcp"
+    }
+  }
+}
+```
+
+If this MCP is hosted later, replace the localhost address with its public base URL.
+
+## MCP surface
 
 | Kind | Name | Purpose |
 | --- | --- | --- |
@@ -75,24 +100,13 @@ Cursor configuration uses the same `mcpServers` object. Hosted MCP clients can c
 | Resource | `metro://routes/{routeId}` | One normalized route record |
 | Resource | `metro://stops/{stopId}` | One normalized stop record |
 
-The browser-facing API is also read-only: `/api/health`, `/api/config`, `/api/data-sources`, `/api/routes/search`, `/api/stops/search`, `/api/stops/nearby`, `/api/arrivals`, `/api/alerts`, `/api/routes/:routeId`, and `/api/stops/:stopId`.
-
 ## Quality checks
 
 ```powershell
 pnpm check
-pnpm deploy:dry-run
 ```
 
 `pnpm check` generates Worker binding types, compiles every workspace, runs linting and both test suites, and performs production builds.
-
-## Deployment
-
-1. Create a D1 database and replace the placeholder ID in `wrangler.jsonc`.
-2. Apply `migrations/0001_static_gtfs_catalog.sql` remotely.
-3. Generate the Static GTFS SQL and import it with `wrangler d1 execute`.
-4. Store both API keys with `wrangler secret put`.
-5. Set `PUBLIC_GITHUB_URL` and run `pnpm deploy`.
 
 Never put API keys in `wrangler.jsonc`, client configuration, browser environment variables, logs, or committed files.
 
