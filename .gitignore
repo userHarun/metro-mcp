@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.wrangler/
+.vite/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Local credentials and overrides
+.dev.vars
+.env
+.env.*
+!.env.example
+
+# Generated GTFS artifacts
+tmp/
+data/
+*.sqlite
+*.sqlite3
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

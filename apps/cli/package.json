@@ -1,0 +1,20 @@
+{
+  "name": "@metro/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "houston-metro-mcp": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@metro/core": "workspace:*",
+    "@metro/mcp": "workspace:*",
+    "@modelcontextprotocol/server": "2.0.0"
+  }
+}

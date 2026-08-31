@@ -1,0 +1,48 @@
+{
+  "name": "houston-metro-mcp-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm build:packages && pnpm --filter @metro/web build && pnpm --filter @metro/cli build",
+    "build:packages": "pnpm --filter @metro/core build && pnpm --filter @metro/mcp build",
+    "cf:typegen": "wrangler types",
+    "check": "pnpm cf:typegen && pnpm build:packages && pnpm typecheck && pnpm lint && pnpm test && pnpm test:worker && pnpm build",
+    "deploy": "pnpm build && wrangler deploy",
+    "deploy:dry-run": "pnpm build && wrangler deploy --dry-run",
+    "dev": "vite",
+    "dev:cli": "pnpm build:packages && pnpm --filter @metro/cli dev",
+    "dev:worker": "pnpm build:packages && pnpm --filter @metro/web build && wrangler dev",
+    "gtfs:build": "node scripts/build-gtfs-import.mjs",
+    "gtfs:import:local": "wrangler d1 execute GTFS_DB --local --file=tmp/gtfs/static-gtfs-import.sql",
+    "gtfs:migrate:local": "wrangler d1 migrations apply GTFS_DB --local",
+    "gtfs:setup:local": "pnpm gtfs:migrate:local && pnpm gtfs:build && pnpm gtfs:import:local",
+    "lint": "oxlint --deny-warnings apps packages tests scripts",
+    "test": "vitest run",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "devDependencies": {
+    "@metro/core": "workspace:*",
+    "@metro/mcp": "workspace:*",
+    "@cloudflare/vitest-plugin": "1.1.2",
+    "@cloudflare/workers-types": "5.20260831.1",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@types/node": "26.2.0",
+    "csv-parse": "7.0.2",
+    "fflate": "0.8.3",
+    "gtfs-realtime-bindings": "2.2.0",
+    "oxlint": "1.80.0",
+    "tsx": "4.20.6",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "4.1.11",
+    "wrangler": "4.127.1"
+  }
+}

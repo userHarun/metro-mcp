@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local Worker development. Never commit real keys.
+METRO_GTFS_API_KEY=replace_with_your_gtfs_and_alerts_subscription_key
+METRO_TRANSIT_DATA_API_KEY=replace_with_your_transit_data_subscription_key
