@@ -51,9 +51,9 @@ Successful endpoints return normalized JSON. Failures return `{ error, message, 
 - `timeout`: the upstream deadline expired
 - `upstream`: METRO could not be reached or returned an unsuccessful status
 - `invalid_response`: the upstream type, size, JSON, or protobuf was invalid
-- `catalog_not_ready`: D1 has not been seeded
+- `catalog_not_ready`: the local GTFS cache or showcase D1 catalog could not be initialized
 - `not_found`: an exact catalog resource is missing
 - `rate_limited`: the service or upstream rejected request volume
 - `internal_error`: an unexpected safe fallback
 
-HTTP status mapping is 400 for invalid requests, 404 for missing resources, 429 for limits, 502 for upstream/response errors, 503 for configuration/catalog readiness, 504 for timeout, and 500 for unexpected failures.
+For the separate showcase API, HTTP status mapping is 400 for invalid requests, 404 for missing resources, 429 for limits, 502 for upstream/response errors, 503 for configuration/catalog readiness, 504 for timeout, and 500 for unexpected failures.

@@ -20,7 +20,7 @@ const arrivalsSchema = z.object({
     retrievedAt: z.string(), feedTimestamp: z.string().nullable().optional(), isStale: z.boolean().nullable().optional(),
   }).passthrough(),
 });
-const configSchema = z.object({ githubUrl: z.string().url().nullable(), mcpEndpoint: z.string() });
+const configSchema = z.object({ githubUrl: z.string().url().nullable() });
 const errorSchema = z.object({ message: z.string() }).passthrough();
 
 export type Stop = z.infer<typeof stopSchema>;

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "pnpm build:packages && pnpm --filter @metro/web build && pnpm --filter @metro/cli build",
-    "build:packages": "pnpm --filter @metro/core build && pnpm --filter @metro/mcp build",
+    "build:packages": "pnpm --filter @metro/core build && pnpm --filter @metro/local build && pnpm --filter @metro/mcp build",
     "cf:typegen": "wrangler types",
     "check": "pnpm cf:typegen && pnpm build:packages && pnpm typecheck && pnpm lint && pnpm test && pnpm test:worker && pnpm build",
     "deploy": "pnpm build && wrangler deploy",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@metro/core": "workspace:*",
+    "@metro/local": "workspace:*",
     "@metro/mcp": "workspace:*",
     "@cloudflare/vitest-plugin": "1.1.2",
     "@cloudflare/workers-types": "5.20260831.1",

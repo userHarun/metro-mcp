@@ -13,7 +13,7 @@ The reference project at `C:\dev\ask-houston-metro` was inspected without modify
 ## Rewritten for this repository
 
 - All shared schemas and provider boundaries
-- The MCP registrations and both transports
+- The MCP registrations and local stdio runtime
 - Worker routing, error mapping, rate limiting, and Static Assets integration
 - D1 schema and catalog repository
 - React composition, styling, installation snippets, and showcase behavior

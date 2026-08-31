@@ -6,10 +6,6 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/local" },
-    { "path": "../../packages/mcp" }
-  ],
+  "references": [{ "path": "../core" }],
   "include": ["src/**/*.ts"]
 }

@@ -39,7 +39,7 @@ export async function handleApi(request: Request, env: Env, provider: MetroDataP
       return json({ status: "ok", service: "houston-metro-mcp", environment: env.APP_ENV, requestId }, { headers: { "Cache-Control": "no-store" } });
     }
     if (url.pathname === "/api/config") {
-      return json({ githubUrl: env.PUBLIC_GITHUB_URL || null, mcpEndpoint: "/mcp" }, { headers: { "Cache-Control": cacheHeaders.catalog } });
+      return json({ githubUrl: env.PUBLIC_GITHUB_URL || null }, { headers: { "Cache-Control": cacheHeaders.catalog } });
     }
     if (url.pathname === "/api/data-sources") {
       return json(await provider.getDataSources(), { headers: { "Cache-Control": cacheHeaders.catalog } });

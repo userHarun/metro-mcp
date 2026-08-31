@@ -41,16 +41,15 @@ function CodePanel({ value }: { value: string }) {
 export function App() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
   const [githubUrl, setGithubUrl] = useState<string | null>(import.meta.env.VITE_GITHUB_URL || null);
-  const endpoint = typeof window === "undefined" ? "https://your-worker.workers.dev/mcp" : `${window.location.origin}/mcp`;
 
   useEffect(() => {
     void getConfig().then((config) => { if (config.githubUrl) setGithubUrl(config.githubUrl); }).catch(() => undefined);
   }, []);
 
   const snippets = useMemo(() => ({
-    claude: JSON.stringify({ mcpServers: { "houston-metro": { command: "npx", args: ["-y", "mcp-remote", endpoint] } } }, null, 2),
-    cursor: JSON.stringify({ mcpServers: { "houston-metro": { url: endpoint } } }, null, 2),
-  }), [endpoint]);
+    claude: JSON.stringify({ mcpServers: { "houston-metro": { command: "node", args: ["C:/path/to/metro-mcp/apps/cli/dist/index.js"], env: { METRO_GTFS_API_KEY: "YOUR_METRO_API_KEY" } } } }, null, 2),
+    cursor: JSON.stringify({ mcpServers: { "houston-metro": { command: "node", args: ["C:/path/to/metro-mcp/apps/cli/dist/index.js"], env: { METRO_GTFS_API_KEY: "YOUR_METRO_API_KEY" } } } }, null, 2),
+  }), []);
 
   function toggleTheme() {
     const next = !dark;
@@ -73,18 +72,18 @@ export function App() {
       <main id="top">
         <section className="hero">
           <div className="hero-copy">
-            <div className="status-line"><span className="status-dot" /> Public, read-only transit tools <span>•</span> MCP 2026</div>
+            <div className="status-line"><span className="status-dot" /> Open-source, read-only transit tools <span>•</span> Local MCP</div>
             <h1>Houston transit data,<br /><span>ready for your agent.</span></h1>
             <p className="hero-lead">Routes, stops, live arrivals, and service alerts through one small, typed MCP server. Built on official METRO data and designed to stay out of the way.</p>
             <div className="hero-actions"><a className="primary-link" href="#install"><TerminalSquare size={17} />Connect your client</a><a className="secondary-link" href="#demo">Try live arrivals<ArrowUpRight size={15} /></a></div>
-            <div className="hero-meta"><span><Check size={14} />Typed responses</span><span><Check size={14} />No browser keys</span><span><Check size={14} />Stdio + HTTP</span></div>
+            <div className="hero-meta"><span><Check size={14} />Typed responses</span><span><Check size={14} />Your own API key</span><span><Check size={14} />Local stdio</span></div>
           </div>
           <div id="demo"><Showcase /></div>
         </section>
 
         <section className="proof-strip" aria-label="Project capabilities">
-          <div><Server size={18} /><span><strong>Cloudflare Worker</strong><small>Stateless Streamable HTTP</small></span></div>
-          <div><TerminalSquare size={18} /><span><strong>Local stdio</strong><small>Claude Desktop compatible</small></span></div>
+          <div><TerminalSquare size={18} /><span><strong>Local MCP</strong><small>Runs with your agent</small></span></div>
+          <div><Server size={18} /><span><strong>Independent demo</strong><small>The website is only a showcase</small></span></div>
           <div><Network size={18} /><span><strong>Three official feeds</strong><small>Catalog, realtime, alerts</small></span></div>
         </section>
 
@@ -93,7 +92,7 @@ export function App() {
           <Tabs.Root className="install-tabs" defaultValue="claude">
             <Tabs.List className="tab-list" aria-label="MCP client configuration"><Tabs.Trigger value="claude">Claude Desktop</Tabs.Trigger><Tabs.Trigger value="cursor">Cursor</Tabs.Trigger></Tabs.List>
             <Tabs.Content value="claude"><CodePanel value={snippets.claude} /><p className="config-note">Add this object to Claude Desktop’s MCP configuration, then restart the app.</p></Tabs.Content>
-            <Tabs.Content value="cursor"><CodePanel value={snippets.cursor} /><p className="config-note">Add this server to your project or global Cursor MCP configuration.</p></Tabs.Content>
+            <Tabs.Content value="cursor"><CodePanel value={snippets.cursor} /><p className="config-note">Add this local command to your project or global Cursor MCP configuration.</p></Tabs.Content>
           </Tabs.Root>
         </section>
 

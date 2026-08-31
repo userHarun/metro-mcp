@@ -1,63 +1,45 @@
 # Houston METRO MCP
 
-A typed Model Context Protocol server and compact transit-data web app for Houston METRO. It exposes route and stop search from Static GTFS, next arrivals from GTFS Realtime Trip Updates, and disruptions from the V2 Alerts feed.
+A local Model Context Protocol server for Houston METRO routes, stops, realtime arrivals, and service alerts.
 
-## What is included
+The MCP runs on your computer through stdio. Your AI client starts it when needed, and your METRO API key is used directly by the local process—there is no hosted MCP service in between.
 
-- MCP over local stdio and stateless Streamable HTTP at `/mcp`
-- Five read-only transit tools and three MCP resources
-- D1-backed route, stop, and nearby-stop catalog
-- Bounded, timeout-aware METRO clients with Zod-validated results
-- React landing page with installation snippets and a next-arrivals showcase
-- Worker, in-memory MCP, normalization, and security-oriented tests
+## Available tools
+
+- `search_routes` — find routes by number or name
+- `search_stops` — find stops by code or name
+- `find_nearby_stops` — find stops closest to a latitude and longitude
+- `get_next_arrivals` — get realtime arrivals for a stop, optionally filtered by route
+- `get_service_alerts` — get current system-wide or route-specific alerts
+
+The server also exposes route, stop, and data-source resources under the `metro://` URI scheme.
 
 ## Requirements
 
 - Node.js 22 or newer
 - pnpm 11
-- A Houston METRO developer subscription for the GTFS and Transit Data products
+- A Houston METRO GTFS API subscription key from the [METRO Transit Data portal](https://api-portal.ridemetro.org/)
 
-## Run the website
+## Install
 
-From this repository:
+After cloning this repository, open a terminal in the repository and run:
 
 ```powershell
 pnpm install
-Copy-Item .dev.vars.example .dev.vars
-```
-
-Add your METRO keys to the ignored `.dev.vars` file:
-
-```dotenv
-METRO_GTFS_API_KEY=your-gtfs-key
-METRO_TRANSIT_DATA_API_KEY=your-transit-data-key
-```
-
-Prepare the local route and stop catalog once:
-
-```powershell
-pnpm gtfs:setup:local
-```
-
-Then start the website and MCP server together:
-
-```powershell
-pnpm dev:worker
-```
-
-Open [http://localhost:8787](http://localhost:8787). The landing page and arrivals showcase use the same local Worker as the MCP endpoint at `http://localhost:8787/mcp`.
-
-On later runs, only `pnpm dev:worker` is needed unless the GTFS catalog needs to be refreshed. `pnpm dev` starts the visual frontend alone on `http://localhost:5173`, but its live transit widget requires the Worker.
-
-## Connect an MCP client
-
-Build the packages and CLI first:
-
-```powershell
 pnpm build
 ```
 
-Claude Desktop configuration:
+The local MCP entry point is:
+
+```text
+apps/cli/dist/index.js
+```
+
+Use its absolute path in your MCP client configuration.
+
+## Claude Desktop
+
+Add the server to `claude_desktop_config.json`:
 
 ```json
 {
@@ -66,57 +48,52 @@ Claude Desktop configuration:
       "command": "node",
       "args": ["C:/absolute/path/to/metro-mcp/apps/cli/dist/index.js"],
       "env": {
-        "METRO_SERVICE_URL": "http://localhost:8787"
+        "METRO_GTFS_API_KEY": "YOUR_METRO_API_KEY"
       }
     }
   }
 }
 ```
 
-Keep `pnpm dev:worker` running while using this local configuration. Cursor can connect directly to the local Streamable HTTP endpoint:
+Restart Claude Desktop after saving the configuration.
+
+## Cursor
+
+Add the same local command to `.cursor/mcp.json` in a project or to Cursor’s global MCP configuration:
 
 ```json
 {
   "mcpServers": {
     "houston-metro": {
-      "url": "http://localhost:8787/mcp"
+      "command": "node",
+      "args": ["C:/absolute/path/to/metro-mcp/apps/cli/dist/index.js"],
+      "env": {
+        "METRO_GTFS_API_KEY": "YOUR_METRO_API_KEY"
+      }
     }
   }
 }
 ```
 
-If this MCP is hosted later, replace the localhost address with its public base URL.
+Enable the server in Cursor’s MCP settings after saving the file.
 
-## MCP surface
+## First use
 
-| Kind | Name | Purpose |
-| --- | --- | --- |
-| Tool | `search_routes` | Search routes by ID, short name, or long name |
-| Tool | `search_stops` | Search stops by ID, code, or name |
-| Tool | `find_nearby_stops` | Find the nearest stops to coordinates |
-| Tool | `get_next_arrivals` | Read upcoming stop arrivals with an optional route filter |
-| Tool | `get_service_alerts` | Read active service alerts with an optional route filter |
-| Resource | `metro://system/data-sources` | Feed readiness and attribution |
-| Resource | `metro://routes/{routeId}` | One normalized route record |
-| Resource | `metro://stops/{stopId}` | One normalized stop record |
+The first route or stop request downloads METRO’s official Static GTFS archive and stores it in a local cache. Later sessions reuse that cache and refresh it automatically. Realtime arrival and alert requests go directly to METRO using your API key.
 
-## Quality checks
+You do not need to start a website, Worker, database, or separate background service. Your MCP client launches and stops the local process automatically.
 
-```powershell
-pnpm check
-```
+## Troubleshooting
 
-`pnpm check` generates Worker binding types, compiles every workspace, runs linting and both test suites, and performs production builds.
-
-Never put API keys in `wrangler.jsonc`, client configuration, browser environment variables, logs, or committed files.
-
-## Architecture
-
-See [Architecture](docs/ARCHITECTURE.md), [Public contracts](docs/CONTRACTS.md), and [Legacy audit](docs/LEGACY_AUDIT.md). The transport-independent MCP factory lives in `packages/mcp`; `packages/core` owns domain contracts and provider clients; the CLI and Worker are thin adapters.
+- Use an absolute path to `apps/cli/dist/index.js`.
+- Run `pnpm build` again after pulling updates.
+- Confirm `node --version` reports Node 22 or newer.
+- Restart the MCP client after changing its configuration.
+- Confirm your METRO subscription key is active if realtime tools return a configuration or upstream error.
 
 ## Attribution
 
-Transit data is provided by the Metropolitan Transit Authority of Harris County, Texas (METRO). See the [Houston METRO Transit Data portal](https://api-portal.ridemetro.org/). METRO trademarks and service marks remain the property of METRO; this independent project is not an official METRO product.
+Transit data is provided by the Metropolitan Transit Authority of Harris County, Texas (METRO). METRO trademarks and service marks remain the property of METRO. This independent project is not an official METRO product.
 
 ## License
 

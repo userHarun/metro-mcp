@@ -8,9 +8,6 @@
   },
   "dependencies": {
     "@metro/core": "workspace:*",
-    "@metro/mcp": "workspace:*",
-    "@modelcontextprotocol/server": "2.0.0",
-    "agents": "0.22.0",
     "zod": "4.5.4"
   }
 }
