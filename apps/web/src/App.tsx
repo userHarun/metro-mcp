@@ -54,10 +54,10 @@ export function App() {
     <div className="site-shell">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Houston METRO MCP home"><span className="brand-mark"><TrainFront size={17} /></span><span>Houston METRO <em>MCP</em></span></a>
-        <nav aria-label="Primary navigation"><a href="#install">Install</a><a href="#demo">Live lookup</a></nav>
+        <nav aria-label="Primary navigation"><a href="#install">Install</a></nav>
         <div className="header-actions">
           <button className="icon-button" onClick={toggleTheme} aria-label={dark ? "Use light mode" : "Use dark mode"}>{dark ? <Sun size={17} /> : <Moon size={17} />}</button>
-          <a className="github-button" href={githubUrl ?? "https://github.com/new"} target="_blank" rel="noreferrer"><Github size={16} />{githubUrl ? "GitHub" : "Publish repo"}<ArrowUpRight size={14} /></a>
+          <a className="github-button" href={githubUrl ?? "https://github.com/userHarun/metro-mcp"} target="_blank" rel="noreferrer"><Github size={16} />GitHub</a>
         </div>
       </header>
 
@@ -67,7 +67,7 @@ export function App() {
             <p className="status-line">Local Houston METRO MCP</p>
             <h1>Houston METRO transit data</h1>
             <p className="hero-lead">Look up routes, stops, live arrivals, and service alerts from your local MCP client.</p>
-            <div className="hero-actions"><a className="primary-link" href="#install"><TerminalSquare size={17} />Install the MCP</a><a className="secondary-link" href="#demo">Open live lookup</a></div>
+            <div className="hero-actions"><a className="primary-link" href="#install"><TerminalSquare size={17} />Install the MCP</a><a className="secondary-link" href={githubUrl ?? "https://github.com/userHarun/metro-mcp"} target="_blank" rel="noreferrer"><Github size={16} />View source on GitHub</a></div>
             <div className="hero-meta"><span><Check size={14} />Typed responses</span><span><Check size={14} />Your own API key</span><span><Check size={14} />Local stdio</span></div>
           </div>
           <div id="demo"><Showcase /></div>

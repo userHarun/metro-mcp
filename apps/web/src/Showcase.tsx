@@ -72,6 +72,7 @@ export function Showcase() {
         <div>
           <span className="eyebrow">Live lookup</span>
           <h2 id="showcase-title">Next arrivals</h2>
+          <p>One example of a tool you can build with the same route, stop, and arrival data.</p>
         </div>
       </div>
 
