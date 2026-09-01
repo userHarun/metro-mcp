@@ -1,9 +1,11 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "houston-metro-mcp",
+  "name": "metro-mcp",
   "main": "./apps/worker/src/index.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
   "assets": {
     "binding": "ASSETS",
     "directory": "./apps/web/dist",
@@ -11,7 +13,7 @@
     "run_worker_first": ["/api/*"]
   },
   "vars": {
-    "APP_ENV": "development",
+    "APP_ENV": "production",
     "METRO_API_BASE_URL": "https://api.ridemetro.org",
     "PUBLIC_GITHUB_URL": "https://github.com/userHarun/metro-mcp"
   },
@@ -19,6 +21,7 @@
     {
       "binding": "GTFS_DB",
       "database_name": "houston-metro-mcp-gtfs",
+      "database_id": "764ac8cd-e4fd-4bfd-bf92-cc541af1e934",
       "migrations_dir": "./migrations"
     }
   ],

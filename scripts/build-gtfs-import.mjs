@@ -136,7 +136,6 @@ const datasetId = `metro-${digest.slice(0, 16)}`;
 const importedAt = new Date().toISOString();
 const statements = [
   "PRAGMA foreign_keys = ON;",
-  "BEGIN TRANSACTION;",
   `INSERT OR REPLACE INTO gtfs_datasets (dataset_id, source_sha256, import_schema_version, feed_version, feed_start_date, feed_end_date, imported_at, route_count, stop_count) VALUES (${sql(datasetId)}, ${sql(digest)}, ${sql(IMPORT_SCHEMA_VERSION)}, ${sql(optional(feedInfo, "feed_version"))}, ${sql(optional(feedInfo, "feed_start_date"))}, ${sql(optional(feedInfo, "feed_end_date"))}, ${sql(importedAt)}, ${routeRows.length}, ${stopRows.length});`,
   `DELETE FROM gtfs_routes WHERE dataset_id = ${sql(datasetId)};`,
   `DELETE FROM gtfs_stops WHERE dataset_id = ${sql(datasetId)};`,
@@ -148,7 +147,7 @@ for (const route of routeRows) {
 for (const stop of stopRows) {
   statements.push(`INSERT INTO gtfs_stops (dataset_id, stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station, stop_timezone, wheelchair_boarding) VALUES (${sql(datasetId)}, ${sql(stop.stopId)}, ${sql(stop.code)}, ${sql(stop.name)}, ${sql(stop.description)}, ${stop.latitude}, ${stop.longitude}, ${sql(stop.zoneId)}, ${sql(stop.url)}, ${stop.locationType ?? "NULL"}, ${sql(stop.parentStation)}, ${sql(stop.timezone)}, ${stop.wheelchairBoarding ?? "NULL"});`);
 }
-statements.push(`UPDATE gtfs_state SET active_dataset_id = ${sql(datasetId)} WHERE singleton_id = 1;`, "COMMIT;");
+statements.push(`UPDATE gtfs_state SET active_dataset_id = ${sql(datasetId)} WHERE singleton_id = 1;`);
 
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${statements.join("\n")}\n`, "utf8");
