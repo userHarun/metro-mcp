@@ -4,6 +4,7 @@ dist/
 .vite/
 .turbo/
 coverage/
+anti-slop/
 *.tsbuildinfo
 
 # Local credentials and overrides

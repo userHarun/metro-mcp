@@ -70,10 +70,9 @@ export function Showcase() {
     <section className="showcase" aria-labelledby="showcase-title">
       <div className="showcase__heading">
         <div>
-          <span className="eyebrow"><span /> Live feed demo</span>
+          <span className="eyebrow">Live lookup</span>
           <h2 id="showcase-title">Next arrivals</h2>
         </div>
-        <span className="live-chip">Manual refresh</span>
       </div>
 
       <form onSubmit={(event) => void refresh(event)} className="arrival-form">
@@ -93,14 +92,14 @@ export function Showcase() {
         </div>
         <button className="refresh-button" type="submit" disabled={state === "loading"}>
           {state === "loading" ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
-          {arrivals ? "Refresh" : "Check arrivals"}
+          {arrivals ? "Update arrivals" : "Look up arrivals"}
         </button>
       </form>
 
       <div className="arrival-board" aria-live="polite" aria-busy={state === "loading"}>
         {state === "error" && message ? <div className="board-message board-message--error"><TriangleAlert size={18} /><span>{message}</span></div>
           : state === "loading" ? <div className="board-message"><LoaderCircle className="spin" size={18} /><span>Reading the latest GTFS Realtime feed…</span></div>
-          : !arrivals ? <div className="board-message"><BusFront size={18} /><span>Choose a stop to preview the same live data exposed through MCP.</span></div>
+          : !arrivals ? <div className="board-message"><BusFront size={18} /><span>Choose a stop to see upcoming arrivals.</span></div>
           : arrivals.arrivals.length === 0 ? <div className="board-message"><BusFront size={18} /><span>No upcoming predictions are currently reported for this selection.</span></div>
           : <>
               <div className="board-header"><span>Route</span><span>Due</span><span>Time</span></div>
