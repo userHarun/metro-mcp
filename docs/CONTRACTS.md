@@ -7,9 +7,9 @@ These names and limits are the initial stable surface for version `0.1.x`.
 | Tool | Inputs | Limit | Result |
 | --- | --- | --- | --- |
 | `search_routes` | `query` 1–80 chars; optional `limit` | 1–20, default 10 | query, normalized routes, source |
-| `search_stops` | `query` 2–100 chars; optional `railRouteId`, `limit` | 1–20, default 10 | query, normalized stops, source |
+| `search_stops` | `query` 2–100 chars; optional `limit` | 1–20, default 10 | query, normalized stops, source |
 | `find_nearby_stops` | latitude, longitude; optional `limit` | 1–10, default 5 | coordinates, distance-sorted stops, source |
-| `get_next_arrivals` | `stopId`; optional `routeId`, `limit` | 1–10, default 5 | time-sorted live arrivals, feed coverage, optional rail schedule, source |
+| `get_next_arrivals` | `stopId`; optional `routeId`, `limit` | 1–10, default 5 | time-sorted arrivals, source |
 | `get_service_alerts` | optional `routeId` | bounded upstream feed | normalized alerts, source |
 
 Coordinates must be valid WGS84 latitude and longitude. Identifiers are treated as opaque strings and exact identifiers are preserved.
@@ -31,8 +31,6 @@ Every transit result includes:
 - `retrievedAt`: service retrieval time
 - `feedTimestamp`, `ageSeconds`, and `isStale` when available
 - `datasetVersion`, `serviceStartDate`, and `serviceEndDate` for Static GTFS when available
-
-`get_next_arrivals` includes `coverage.routeTripUpdates` and `coverage.stopTimeUpdates`. When a selected rail route has no live prediction, `schedule` may contain upcoming Static GTFS times with its own source metadata. A scheduled time is never presented as a realtime prediction. The rail schedule uses `America/Chicago` service dates, GTFS times beyond midnight, weekly calendars, and date exceptions.
 
 ## Browser API
 

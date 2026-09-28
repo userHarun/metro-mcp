@@ -1,12 +1,11 @@
 import {
   createMetroLiveClient,
-  getArrivalsWithRailSchedule,
   getNormalizedAlerts,
   getNormalizedArrivals,
   type MetroDataProvider,
   type MetroLogger,
 } from "@metro/core";
-import { findNearbyStops, getCatalogReadiness, getNextRailSchedule, getRoute, getStop, searchRoutes, searchStops } from "./catalog.js";
+import { findNearbyStops, getCatalogReadiness, getRoute, getStop, searchRoutes, searchStops } from "./catalog.js";
 
 export function createWorkerProvider(env: Env, requestId: string, logger: MetroLogger): MetroDataProvider {
   const liveClient = createMetroLiveClient({
@@ -20,13 +19,7 @@ export function createWorkerProvider(env: Env, requestId: string, logger: MetroL
     searchRoutes: (options) => searchRoutes(env.GTFS_DB, options),
     searchStops: (options) => searchStops(env.GTFS_DB, options),
     findNearbyStops: (options) => findNearbyStops(env.GTFS_DB, options),
-    getNextArrivals: async (options) => {
-      const routeId = options.routeId;
-      const route = routeId ? await getRoute(env.GTFS_DB, routeId).catch(() => null) : null;
-      return route?.routeType === 0 && routeId
-        ? getArrivalsWithRailSchedule(liveClient, { ...options, routeId }, () => getNextRailSchedule(env.GTFS_DB, { ...options, routeId }))
-        : getNormalizedArrivals(liveClient, options);
-    },
+    getNextArrivals: (options) => getNormalizedArrivals(liveClient, options),
     getServiceAlerts: ({ routeId }) => getNormalizedAlerts(liveClient, routeId),
     getRoute: (routeId) => getRoute(env.GTFS_DB, routeId),
     getStop: (stopId) => getStop(env.GTFS_DB, stopId),

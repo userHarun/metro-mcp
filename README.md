@@ -7,9 +7,9 @@ The MCP runs on your computer through stdio. Your AI client starts it when neede
 ## Available tools
 
 - `search_routes` — find routes by number or name
-- `search_stops` — find stops by code, name, or rail line
+- `search_stops` — find stops by code or name
 - `find_nearby_stops` — find stops closest to a latitude and longitude
-- `get_next_arrivals` — get realtime arrivals for a stop, optionally filtered by route; rail routes can include labeled scheduled times
+- `get_next_arrivals` — get realtime arrivals for a stop, optionally filtered by route
 - `get_service_alerts` — get current system-wide or route-specific alerts
 
 The server also exposes route, stop, and data-source resources under the `metro://` URI scheme.
@@ -80,8 +80,6 @@ Enable the server in Cursor’s MCP settings after saving the file.
 ## First use
 
 The first route or stop request downloads METRO’s official Static GTFS archive and stores it in a local cache. Later sessions reuse that cache and refresh it automatically. Realtime arrival and alert requests go directly to METRO using your API key.
-
-METRO describes its Trip Updates feed as bus arrival predictions. When you request a rail route and no live prediction is available, the server includes upcoming Static GTFS times under `schedule`. These are scheduled times, not live train positions or predictions. The `coverage` fields show whether the current realtime feed contained updates for the route and stop.
 
 You do not need to start a website, Worker, database, or separate background service. Your MCP client launches and stops the local process automatically.
 

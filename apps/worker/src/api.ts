@@ -2,7 +2,7 @@ import { MetroError, toMetroError, type MetroDataProvider } from "@metro/core";
 import { z } from "zod";
 
 const routeSearchSchema = z.object({ query: z.string().trim().min(1).max(80), limit: z.coerce.number().int().min(1).max(20).default(10) });
-const stopSearchSchema = z.object({ query: z.string().trim().min(2).max(100), railRouteId: z.string().trim().min(1).max(64).optional(), limit: z.coerce.number().int().min(1).max(20).default(10) });
+const stopSearchSchema = z.object({ query: z.string().trim().min(2).max(100), limit: z.coerce.number().int().min(1).max(20).default(10) });
 const nearbySchema = z.object({ latitude: z.coerce.number().min(-90).max(90), longitude: z.coerce.number().min(-180).max(180), limit: z.coerce.number().int().min(1).max(10).default(5) });
 const arrivalsSchema = z.object({ stopId: z.string().trim().min(1).max(100), routeId: z.string().trim().min(1).max(64).optional(), limit: z.coerce.number().int().min(1).max(10).default(5) });
 const alertsSchema = z.object({ routeId: z.string().trim().min(1).max(64).optional() });
@@ -49,7 +49,7 @@ export async function handleApi(request: Request, env: Env, provider: MetroDataP
       return json(await provider.searchRoutes(input), { headers: { "Cache-Control": cacheHeaders.catalog } });
     }
     if (url.pathname === "/api/stops/search") {
-      const input = parse(stopSearchSchema, { query: url.searchParams.get("q"), railRouteId: url.searchParams.get("railRouteId") ?? undefined, limit: url.searchParams.get("limit") ?? undefined });
+      const input = parse(stopSearchSchema, { query: url.searchParams.get("q"), limit: url.searchParams.get("limit") ?? undefined });
       return json(await provider.searchStops(input), { headers: { "Cache-Control": cacheHeaders.catalog } });
     }
     if (url.pathname === "/api/stops/nearby") {

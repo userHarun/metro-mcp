@@ -11,7 +11,7 @@ import type {
 
 export interface MetroDataProvider {
   searchRoutes(options: { query: string; limit: number }): Promise<RouteSearchResult>;
-  searchStops(options: { query: string; limit: number; railRouteId?: string | undefined }): Promise<StopSearchResult>;
+  searchStops(options: { query: string; limit: number }): Promise<StopSearchResult>;
   findNearbyStops(options: { latitude: number; longitude: number; limit: number }): Promise<NearbyStopsResult>;
   getNextArrivals(options: { stopId: string; routeId?: string | undefined; limit: number }): Promise<ArrivalsResult>;
   getServiceAlerts(options: { routeId?: string | undefined }): Promise<AlertsResult>;

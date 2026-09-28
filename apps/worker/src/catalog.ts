@@ -1,4 +1,4 @@
-import { MetroError, nextScheduledRailArrivals, type NearbyStopsResult, type RailScheduleResult, type RailStopTime, type RouteSearchResult, type ServiceCalendar, type ServiceException, type SourceMetadata, type StopSearchResult, type TransitRoute, type TransitStop } from "@metro/core";
+import { MetroError, type NearbyStopsResult, type RouteSearchResult, type SourceMetadata, type StopSearchResult, type TransitRoute, type TransitStop } from "@metro/core";
 
 interface DatasetRow {
   dataset_id: string;
@@ -29,19 +29,6 @@ interface StopRow {
   location_type: number | null;
   parent_station: string | null;
   wheelchair_boarding: number | null;
-}
-
-interface RailStopTimeRow {
-  route_id: string; service_id: string; trip_id: string; stop_id: string; departure_seconds: number; headsign: string | null;
-}
-
-interface ServiceCalendarRow {
-  service_id: string; start_date: string; end_date: string;
-  sunday: number; monday: number; tuesday: number; wednesday: number; thursday: number; friday: number; saturday: number;
-}
-
-interface ServiceExceptionRow {
-  service_id: string; service_date: string; exception_type: 1 | 2;
 }
 
 const activeDatasetSql = `
@@ -150,41 +137,23 @@ export async function searchRoutes(db: D1Database, options: { query: string; lim
   }
 }
 
-export async function searchStops(db: D1Database, options: { query: string; limit: number; railRouteId?: string | undefined }): Promise<StopSearchResult> {
+export async function searchStops(db: D1Database, options: { query: string; limit: number }): Promise<StopSearchResult> {
   const { row, source } = await requireDataset(db);
   const query = options.query.trim();
   const ftsQuery = ftsPrefixQuery(query);
   try {
     const exact = await db.prepare(`
       SELECT stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, location_type, parent_station, wheelchair_boarding
-      FROM gtfs_stops s WHERE s.dataset_id = ? AND s.stop_code = ? COLLATE NOCASE
-        AND (? IS NULL OR EXISTS (SELECT 1 FROM gtfs_rail_stop_times t WHERE t.dataset_id = s.dataset_id AND t.stop_id = s.stop_id AND t.route_id = ?))
-      ORDER BY s.stop_name COLLATE NOCASE LIMIT ?
-    `).bind(row.dataset_id, query, options.railRouteId ?? null, options.railRouteId ?? null, options.limit).all<StopRow>();
+      FROM gtfs_stops WHERE dataset_id = ? AND stop_code = ? COLLATE NOCASE
+      ORDER BY stop_name COLLATE NOCASE LIMIT ?
+    `).bind(row.dataset_id, query, options.limit).all<StopRow>();
     const matched = ftsQuery ? await db.prepare(`
       SELECT s.stop_id, s.stop_code, s.stop_name, s.stop_desc, s.stop_lat, s.stop_lon, s.location_type, s.parent_station, s.wheelchair_boarding
       FROM gtfs_stop_search f JOIN gtfs_stops s ON s.rowid = f.rowid
       WHERE s.dataset_id = ? AND gtfs_stop_search MATCH ?
-        AND (? IS NULL OR EXISTS (SELECT 1 FROM gtfs_rail_stop_times t WHERE t.dataset_id = s.dataset_id AND t.stop_id = s.stop_id AND t.route_id = ?))
       ORDER BY bm25(gtfs_stop_search, 0.0, 0.0, 1.0, 2.0, 0.25), s.stop_name COLLATE NOCASE LIMIT ?
-    `).bind(row.dataset_id, ftsQuery, options.railRouteId ?? null, options.railRouteId ?? null, options.limit * 2).all<StopRow>() : { results: [] as StopRow[] };
-    let unique = Array.from(new Map([...exact.results, ...matched.results].map((stop) => [stop.stop_id, stop])).values()).slice(0, options.limit);
-    if (!unique.length) {
-      const railRoute = options.railRouteId
-        ? await getRoute(db, options.railRouteId)
-        : (await searchRoutes(db, { query, limit: 20 })).routes.find((route) => route.routeType === 0);
-      const normalizedQuery = query.toLocaleLowerCase("en-US");
-      const routeMatches = railRoute && [railRoute.routeId, railRoute.shortName, railRoute.longName].some((value) => value?.toLocaleLowerCase("en-US").includes(normalizedQuery));
-      if (railRoute?.routeType === 0 && routeMatches) {
-        const railStops = await db.prepare(`
-          SELECT DISTINCT s.stop_id, s.stop_code, s.stop_name, s.stop_desc, s.stop_lat, s.stop_lon, s.location_type, s.parent_station, s.wheelchair_boarding
-          FROM gtfs_rail_stop_times t JOIN gtfs_stops s ON s.dataset_id = t.dataset_id AND s.stop_id = t.stop_id
-          WHERE t.dataset_id = ? AND t.route_id = ?
-          ORDER BY s.stop_name COLLATE NOCASE, s.stop_id LIMIT ?
-        `).bind(row.dataset_id, railRoute.routeId, options.limit).all<StopRow>();
-        unique = railStops.results;
-      }
-    }
+    `).bind(row.dataset_id, ftsQuery, options.limit * 2).all<StopRow>() : { results: [] as StopRow[] };
+    const unique = Array.from(new Map([...exact.results, ...matched.results].map((stop) => [stop.stop_id, stop])).values()).slice(0, options.limit);
     return { query, stops: unique.map(stopFromRow), source };
   } catch (error: unknown) {
     throw new MetroError("internal_error", "The stop catalog query failed.", { cause: error });
@@ -229,23 +198,6 @@ export async function getStop(db: D1Database, stopId: string): Promise<TransitSt
   const { row } = await requireDataset(db);
   const stop = await db.prepare(`SELECT stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, location_type, parent_station, wheelchair_boarding FROM gtfs_stops WHERE dataset_id = ? AND stop_id = ?`).bind(row.dataset_id, stopId).first<StopRow>();
   return stop ? stopFromRow(stop) : null;
-}
-
-export async function getNextRailSchedule(db: D1Database, options: { stopId: string; routeId: string; limit: number; nowMs?: number }): Promise<RailScheduleResult> {
-  const { row, source } = await requireDataset(db);
-  try {
-    const [times, calendarRows, exceptionRows] = await Promise.all([
-      db.prepare("SELECT route_id, service_id, trip_id, stop_id, departure_seconds, headsign FROM gtfs_rail_stop_times WHERE dataset_id = ? AND stop_id = ? AND route_id = ?").bind(row.dataset_id, options.stopId, options.routeId).all<RailStopTimeRow>(),
-      db.prepare("SELECT service_id, start_date, end_date, sunday, monday, tuesday, wednesday, thursday, friday, saturday FROM gtfs_service_calendar WHERE dataset_id = ?").bind(row.dataset_id).all<ServiceCalendarRow>(),
-      db.prepare("SELECT service_id, service_date, exception_type FROM gtfs_service_exceptions WHERE dataset_id = ?").bind(row.dataset_id).all<ServiceExceptionRow>(),
-    ]);
-    const stopTimes: RailStopTime[] = times.results.map((item) => ({ routeId: item.route_id, serviceId: item.service_id, tripId: item.trip_id, stopId: item.stop_id, departureSeconds: item.departure_seconds, headsign: item.headsign }));
-    const calendars: ServiceCalendar[] = calendarRows.results.map((item) => ({ serviceId: item.service_id, startDate: item.start_date, endDate: item.end_date, weekdays: [item.sunday, item.monday, item.tuesday, item.wednesday, item.thursday, item.friday, item.saturday].map(Boolean) }));
-    const exceptions: ServiceException[] = exceptionRows.results.map((item) => ({ serviceId: item.service_id, date: item.service_date, type: item.exception_type }));
-    return { arrivals: nextScheduledRailArrivals(stopTimes, calendars, exceptions, options.nowMs ?? Date.now(), options.limit), source };
-  } catch (error: unknown) {
-    throw new MetroError("catalog_not_ready", "The rail schedule catalog is not ready.", { cause: error });
-  }
 }
 
 export async function getCatalogReadiness(db: D1Database): Promise<{ ready: boolean; source: SourceMetadata | null }> {

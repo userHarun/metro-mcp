@@ -51,14 +51,6 @@ export const arrivalSchema = z.object({
   tripUpdatedAt: z.string().datetime().nullable(),
 });
 
-export const scheduledArrivalSchema = z.object({
-  tripId: z.string(),
-  routeId: z.string(),
-  stopId: z.string(),
-  scheduledAt: z.string().datetime(),
-  headsign: z.string().nullable(),
-});
-
 export const serviceAlertSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -101,11 +93,6 @@ export const nearbyStopsResultSchema = z.object({
 export const arrivalsResultSchema = z.object({
   stopId: z.string(),
   arrivals: z.array(arrivalSchema),
-  coverage: z.object({
-    routeTripUpdates: z.boolean().nullable(),
-    stopTimeUpdates: z.boolean().nullable(),
-  }),
-  schedule: z.object({ arrivals: z.array(scheduledArrivalSchema), source: sourceMetadataSchema }).nullable(),
   source: sourceMetadataSchema,
 });
 
@@ -129,8 +116,6 @@ export type TransitRoute = z.infer<typeof routeSchema>;
 export type TransitStop = z.infer<typeof stopSchema>;
 export type NearbyStop = z.infer<typeof nearbyStopSchema>;
 export type Arrival = z.infer<typeof arrivalSchema>;
-export type ScheduledArrival = z.infer<typeof scheduledArrivalSchema>;
-export type RailScheduleResult = NonNullable<z.infer<typeof arrivalsResultSchema>["schedule"]>;
 export type ServiceAlert = z.infer<typeof serviceAlertSchema>;
 export type RouteSearchResult = z.infer<typeof routeSearchResultSchema>;
 export type StopSearchResult = z.infer<typeof stopSearchResultSchema>;

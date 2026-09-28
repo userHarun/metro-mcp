@@ -1,20 +1,13 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { Readable } from "node:stream";
-import { parse as parseStream } from "csv-parse";
 import { parse } from "csv-parse/sync";
 import { unzipSync } from "fflate";
 import {
   MetroError,
-  nextScheduledRailArrivals,
   type MetroLogger,
   type NearbyStopsResult,
   type RouteSearchResult,
-  type RailScheduleResult,
-  type RailStopTime,
-  type ServiceCalendar,
-  type ServiceException,
   type SourceMetadata,
   type StopSearchResult,
   type TransitRoute,
@@ -37,12 +30,6 @@ interface CatalogState {
   serviceStartDate: string | null;
   serviceEndDate: string | null;
   loadedFromCache: boolean;
-}
-
-interface RailScheduleState {
-  stopTimesByStop: Map<string, RailStopTime[]>;
-  calendars: ServiceCalendar[];
-  exceptions: ServiceException[];
 }
 
 export interface LocalCatalogOptions {
@@ -118,15 +105,6 @@ function normalize(value: string): string {
   return value.toLocaleLowerCase("en-US").replace(/\s+/g, " ").trim();
 }
 
-function gtfsSeconds(value: string | undefined): number | null {
-  const match = value?.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  const seconds = Number(match[3]);
-  return hours <= 48 && minutes < 60 && seconds < 60 ? hours * 3600 + minutes * 60 + seconds : null;
-}
-
 async function readBoundedBody(response: Response, maxBytes: number): Promise<Uint8Array> {
   if (!response.body) return new Uint8Array();
   const reader = response.body.getReader();
@@ -186,7 +164,6 @@ export class LocalGtfsCatalog {
   readonly #options: LocalCatalogOptions;
   #state: CatalogState | null = null;
   #loading: Promise<CatalogState> | null = null;
-  #railSchedule: Promise<RailScheduleState> | null = null;
 
   constructor(options: LocalCatalogOptions) {
     this.#options = options;
@@ -338,81 +315,6 @@ export class LocalGtfsCatalog {
     };
   }
 
-  async #loadRailSchedule(state: CatalogState): Promise<RailScheduleState> {
-    const bytes = new Uint8Array(await readFile(this.#options.archivePath));
-    const extracted = unzipSync(bytes, {
-      filter(file) {
-        const name = basename(file.name).toLowerCase();
-        return ["trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates.txt"].includes(name);
-      },
-    });
-    const files = new Map(Object.entries(extracted).map(([name, value]) => [basename(name).toLowerCase(), value]));
-    const tripsFile = files.get("trips.txt");
-    const stopTimesFile = files.get("stop_times.txt");
-    const calendarFile = files.get("calendar.txt");
-    if (!tripsFile || !stopTimesFile || !calendarFile) throw new MetroError("invalid_response", "The METRO rail schedule files are incomplete.");
-    if ([...files.values()].reduce((total, value) => total + value.byteLength, 0) > MAX_EXTRACTED_BYTES) {
-      throw new MetroError("invalid_response", "The METRO rail schedule is larger than allowed.");
-    }
-    const railRoutes = new Set(state.routes.filter((route) => route.routeType === 0).map((route) => route.routeId));
-    const trips = new Map(parseCsv(tripsFile, "trips.txt")
-      .filter((record) => railRoutes.has(record.route_id ?? ""))
-      .map((record) => [required(record, "trip_id", "trips.txt"), {
-        routeId: required(record, "route_id", "trips.txt"),
-        serviceId: required(record, "service_id", "trips.txt"),
-        headsign: optional(record, "trip_headsign"),
-      }]));
-    const calendars: ServiceCalendar[] = parseCsv(calendarFile, "calendar.txt").map((record) => ({
-      serviceId: required(record, "service_id", "calendar.txt"),
-      startDate: required(record, "start_date", "calendar.txt"),
-      endDate: required(record, "end_date", "calendar.txt"),
-      weekdays: ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => record[day]?.trim() === "1"),
-    }));
-    const exceptions: ServiceException[] = files.has("calendar_dates.txt")
-      ? parseCsv(files.get("calendar_dates.txt")!, "calendar_dates.txt").map((record) => ({
-        serviceId: required(record, "service_id", "calendar_dates.txt"),
-        date: required(record, "date", "calendar_dates.txt"),
-        type: integer(record, "exception_type", "calendar_dates.txt", true) as 1 | 2,
-      })) : [];
-    const byStop = new Map<string, RailStopTime[]>();
-    const chunks = function* () {
-      for (let index = 0; index < stopTimesFile.length; index += 64 * 1024) yield stopTimesFile.subarray(index, index + 64 * 1024);
-    };
-    try {
-      for await (const record of Readable.from(chunks()).pipe(parseStream({ bom: true, columns: true, trim: true })) as AsyncIterable<CsvRecord>) {
-        const tripId = record.trip_id?.trim() ?? "";
-        const trip = trips.get(tripId);
-        if (!trip || record.pickup_type?.trim() === "1") continue;
-        const stopId = required(record, "stop_id", "stop_times.txt");
-        const departureSeconds = gtfsSeconds(record.departure_time ?? record.arrival_time);
-        if (departureSeconds == null) continue;
-        const row: RailStopTime = { ...trip, tripId, stopId, departureSeconds, headsign: optional(record, "stop_headsign") ?? trip.headsign };
-        const rows = byStop.get(stopId) ?? [];
-        rows.push(row);
-        byStop.set(stopId, rows);
-      }
-    } catch (error: unknown) {
-      throw new MetroError("invalid_response", "The METRO rail schedule could not be parsed.", { cause: error });
-    }
-    return { stopTimesByStop: byStop, calendars, exceptions };
-  }
-
-  async #requireRailSchedule(state: CatalogState): Promise<RailScheduleState> {
-    this.#railSchedule ??= this.#loadRailSchedule(state);
-    try { return await this.#railSchedule; }
-    catch (error: unknown) { this.#railSchedule = null; throw error; }
-  }
-
-  async getNextRailSchedule(options: { stopId: string; routeId: string; limit: number; nowMs?: number }): Promise<RailScheduleResult> {
-    const state = await this.#requireState();
-    const schedule = await this.#requireRailSchedule(state);
-    const stopTimes = (schedule.stopTimesByStop.get(options.stopId) ?? []).filter((row) => row.routeId === options.routeId);
-    return {
-      arrivals: nextScheduledRailArrivals(stopTimes, schedule.calendars, schedule.exceptions, options.nowMs ?? Date.now(), options.limit),
-      source: this.#source(state),
-    };
-  }
-
   async searchRoutes(options: { query: string; limit: number }): Promise<RouteSearchResult> {
     const state = await this.#requireState();
     const query = options.query.trim();
@@ -428,31 +330,17 @@ export class LocalGtfsCatalog {
     return { query, routes, source: this.#source(state) };
   }
 
-  async searchStops(options: { query: string; limit: number; railRouteId?: string | undefined }): Promise<StopSearchResult> {
+  async searchStops(options: { query: string; limit: number }): Promise<StopSearchResult> {
     const state = await this.#requireState();
     const query = options.query.trim();
     const normalizedQuery = normalize(query);
     const tokens = normalizedQuery.match(/[\p{L}\p{N}]+/gu) ?? [normalizedQuery];
-    const schedule = options.railRouteId ? await this.#requireRailSchedule(state) : null;
-    const belongsToRoute = (stopId: string, routeId: string) => (schedule?.stopTimesByStop.get(stopId) ?? []).some((row) => row.routeId === routeId);
-    let stops = state.stops
-      .filter((stop) => !options.railRouteId || belongsToRoute(stop.stopId, options.railRouteId))
+    const stops = state.stops
       .map((stop) => ({ stop, rank: stopRank(stop, normalizedQuery, tokens) }))
       .filter((item): item is { stop: TransitStop; rank: number } => item.rank != null)
       .sort((left, right) => left.rank - right.rank || left.stop.name.localeCompare(right.stop.name) || left.stop.stopId.localeCompare(right.stop.stopId))
       .slice(0, options.limit)
       .map(({ stop }) => stop);
-    if (!stops.length) {
-      const railRoute = options.railRouteId
-        ? state.routesById.get(options.railRouteId)
-        : state.routes.filter((route) => route.routeType === 0 && routeRank(route, normalizedQuery) != null)
-          .sort((left, right) => (routeRank(left, normalizedQuery) ?? 9) - (routeRank(right, normalizedQuery) ?? 9))[0];
-      if (railRoute?.routeType === 0 && routeRank(railRoute, normalizedQuery) != null) {
-        const railSchedule = schedule ?? await this.#requireRailSchedule(state);
-        stops = state.stops.filter((stop) => (railSchedule.stopTimesByStop.get(stop.stopId) ?? []).some((row) => row.routeId === railRoute.routeId))
-          .sort((left, right) => left.name.localeCompare(right.name) || left.stopId.localeCompare(right.stopId)).slice(0, options.limit);
-      }
-    }
     return { query, stops, source: this.#source(state) };
   }
 

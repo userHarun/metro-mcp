@@ -102,7 +102,6 @@ code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .suggestions button:focus-visible { outline-offset: -2px; }
 .suggestions strong { overflow: hidden; font-size: 11px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
 .suggestions span { flex: none; color: var(--faint); font-size: 9px; }
-.search-hint { position: absolute; z-index: 10; width: 100%; margin: 5px 0 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-strong); color: var(--muted); font-size: 11px; line-height: 1.4; box-shadow: var(--shadow); }
 .saved-routes { padding: 11px 22px 13px; border-bottom: 1px solid var(--line); }
 .saved-routes__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; font-weight: 650; }
 .saved-routes__heading button { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; padding: 0 5px; border: 0; background: transparent; color: var(--accent); font-size: 11px; font-weight: 650; cursor: pointer; }
@@ -122,8 +121,6 @@ code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .board-header span:nth-child(n+2), .board-row span, .board-row time { text-align: right; }
 .board-row { min-height: 43px; border-bottom: 1px solid var(--line); font-size: 12px; }
 .board-row strong { font: 620 11px/1 "SFMono-Regular", Consolas, monospace; }
-.board-route { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.board-route small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .board-row span { font-weight: 650; }
 .board-row time { color: var(--muted); font-size: 11px; }
 .board-footer { display: flex; justify-content: space-between; padding-top: 13px; color: var(--faint); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
