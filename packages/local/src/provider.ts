@@ -1,5 +1,6 @@
 import {
   createMetroLiveClient,
+  getArrivalsWithRailSchedule,
   getNormalizedAlerts,
   getNormalizedArrivals,
   silentLogger,
@@ -37,7 +38,13 @@ export function createLocalMetroProvider(options: LocalMetroProviderOptions): Me
     searchRoutes: (input) => catalog.searchRoutes(input),
     searchStops: (input) => catalog.searchStops(input),
     findNearbyStops: (input) => catalog.findNearbyStops(input),
-    getNextArrivals: (input) => getNormalizedArrivals(liveClient, input),
+    getNextArrivals: async (input) => {
+      const routeId = input.routeId;
+      const route = routeId ? await catalog.getRoute(routeId).catch(() => null) : null;
+      return route?.routeType === 0 && routeId
+        ? getArrivalsWithRailSchedule(liveClient, { ...input, routeId }, () => catalog.getNextRailSchedule({ ...input, routeId }))
+        : getNormalizedArrivals(liveClient, input);
+    },
     getServiceAlerts: ({ routeId }) => getNormalizedAlerts(liveClient, routeId),
     getRoute: (routeId) => catalog.getRoute(routeId),
     getStop: (stopId) => catalog.getStop(stopId),

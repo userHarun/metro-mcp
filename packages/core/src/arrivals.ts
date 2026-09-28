@@ -1,7 +1,7 @@
 import GtfsRealtimeBindings from "gtfs-realtime-bindings";
 import { MetroError } from "./errors.js";
 import type { MetroLiveClient } from "./metro-client.js";
-import type { Arrival, ArrivalsResult } from "./schemas.js";
+import type { Arrival, ArrivalsResult, RailScheduleResult } from "./schemas.js";
 
 interface LongLike { toString(): string }
 type NumericValue = number | LongLike | null | undefined;
@@ -34,11 +34,15 @@ export async function getNormalizedArrivals(
   const nowMs = options.nowMs ?? Date.now();
   const cutoffMs = nowMs - 60_000;
   const arrivals: Arrival[] = [];
+  let routeTripUpdates = false;
+  let stopTimeUpdates = false;
   for (const entity of feed.entity) {
     const update = entity.tripUpdate;
     if (!update || (options.routeId && update.trip?.routeId !== options.routeId)) continue;
+    routeTripUpdates = true;
     for (const stopUpdate of update.stopTimeUpdate ?? []) {
       if (stopUpdate.stopId !== options.stopId) continue;
+      stopTimeUpdates = true;
       const arrivalSeconds = safeNumber(stopUpdate.arrival?.time);
       const departureSeconds = safeNumber(stopUpdate.departure?.time);
       const predictedSeconds = arrivalSeconds ?? departureSeconds;
@@ -68,6 +72,8 @@ export async function getNormalizedArrivals(
   return {
     stopId: options.stopId,
     arrivals: arrivals.slice(0, options.limit),
+    coverage: { routeTripUpdates: options.routeId ? routeTripUpdates : null, stopTimeUpdates },
+    schedule: null,
     source: {
       provider: "Houston METRO",
       feed: "gtfs-realtime-trip-updates",
@@ -77,4 +83,28 @@ export async function getNormalizedArrivals(
       isStale: ageSeconds == null ? null : ageSeconds > 90,
     },
   };
+}
+
+export async function getArrivalsWithRailSchedule(
+  client: MetroLiveClient,
+  options: { stopId: string; routeId: string; limit: number; nowMs?: number },
+  getSchedule: () => Promise<RailScheduleResult>,
+): Promise<ArrivalsResult> {
+  let live: ArrivalsResult;
+  try {
+    live = await getNormalizedArrivals(client, options);
+  } catch (error: unknown) {
+    const schedule = await getSchedule();
+    if (!schedule.arrivals.length) throw error;
+    return {
+      stopId: options.stopId,
+      arrivals: [],
+      coverage: { routeTripUpdates: null, stopTimeUpdates: null },
+      schedule,
+      source: schedule.source,
+    };
+  }
+  if (live.arrivals.length) return live;
+  const schedule = await getSchedule();
+  return { ...live, schedule: schedule.arrivals.length ? schedule : null };
 }

@@ -22,9 +22,9 @@ The local MCP and public showcase share schemas and normalization, but neither d
 
 ## Data flow
 
-On first catalog use, the local MCP downloads the official Static GTFS ZIP into the user's cache directory, validates it, and builds an in-memory route/stop index. Later processes reuse and periodically refresh the cache. Trip Updates and V2 Alerts are fetched directly from METRO with the user's key.
+On first catalog use, the local MCP downloads the official Static GTFS ZIP into the user's cache directory, validates it, and builds an in-memory route/stop index. Later processes reuse and periodically refresh the cache. A selected rail route can lazily load GTFS trips, stop times, and service calendars from that archive for scheduled arrivals. Trip Updates and V2 Alerts are fetched directly from METRO with the user's key.
 
-The website uses a separate D1 import and Worker API so visitors can try the showcase without installing the MCP. That deployment is not part of the local MCP runtime.
+The website uses a separate D1 import and Worker API so visitors can try the showcase without installing the MCP. The import stores rail stop times and service calendars alongside the route and stop catalog. That deployment is not part of the local MCP runtime.
 
 The showcase performs manual requests only. It never receives a METRO key, embeds an authenticated feed URL, or continuously polls.
 

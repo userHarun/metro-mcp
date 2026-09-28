@@ -64,9 +64,10 @@ export function createMetroMcpServer(provider: MetroDataProvider): McpServer {
 
   server.registerTool("search_stops", {
     title: "Search METRO stops",
-    description: "Find Houston METRO stops by public stop code or stop name. Returns exact GTFS stop IDs.",
+    description: "Find Houston METRO stops by public stop code, station name, or rail line name. Optionally narrow results to a rail route. Returns exact GTFS stop IDs.",
     inputSchema: z.object({
       query: z.string().trim().min(2).max(100).describe("Stop code or words from the stop name"),
+      railRouteId: z.string().trim().min(1).max(64).optional().describe("Exact rail route ID, such as 900 for the Purple Line"),
       limit: z.number().int().min(1).max(20).default(10),
     }),
     outputSchema: stopSearchResultSchema,
@@ -91,7 +92,7 @@ export function createMetroMcpServer(provider: MetroDataProvider): McpServer {
 
   server.registerTool("get_next_arrivals", {
     title: "Get next arrivals",
-    description: "Return METRO GTFS Realtime arrival predictions for an exact stop ID, optionally filtered to an exact route ID.",
+    description: "Return METRO live arrival predictions for a stop, optionally filtered by route. When a rail route has no live predictions, include the next Static GTFS schedule times in a separately labeled schedule field. Coverage distinguishes missing feed updates from no upcoming predictions.",
     inputSchema: z.object({
       stopId: z.string().trim().min(1).max(100),
       routeId: z.string().trim().min(1).max(64).optional(),

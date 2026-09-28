@@ -1,13 +1,15 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
+import { Readable } from "node:stream";
+import { parse as parseStream } from "csv-parse";
 import { parse } from "csv-parse/sync";
 import { unzipSync } from "fflate";
 
 const DEFAULT_URL = "https://metro.resourcespace.com/pages/download.php?ref=4835&ext=zip";
 const MAX_ZIP_BYTES = 32 * 1024 * 1024;
 const MAX_EXTRACTED_BYTES = 96 * 1024 * 1024;
-const IMPORT_SCHEMA_VERSION = "routes-stops-v1";
+const IMPORT_SCHEMA_VERSION = "routes-stops-rail-v2";
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -59,6 +61,15 @@ function csv(bytes, file) {
   });
 }
 
+function gtfsSeconds(value) {
+  const match = value?.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  return hours <= 48 && minutes < 60 && seconds < 60 ? hours * 3600 + minutes * 60 + seconds : null;
+}
+
 async function loadArchive(input) {
   if (/^https?:\/\//i.test(input)) {
     const response = await fetch(input, { signal: AbortSignal.timeout(30_000) });
@@ -78,11 +89,11 @@ const zipBytes = await loadArchive(input);
 const archive = unzipSync(zipBytes, {
   filter(file) {
     const name = basename(file.name).toLowerCase();
-    return name === "routes.txt" || name === "stops.txt" || name === "feed_info.txt";
+    return ["routes.txt", "stops.txt", "feed_info.txt", "trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates.txt"].includes(name);
   },
 });
 const files = new Map(Object.entries(archive).map(([name, bytes]) => [basename(name).toLowerCase(), bytes]));
-for (const requiredFile of ["routes.txt", "stops.txt"]) {
+for (const requiredFile of ["routes.txt", "stops.txt", "trips.txt", "stop_times.txt", "calendar.txt"]) {
   if (!files.has(requiredFile)) throw new Error(`GTFS archive is missing ${requiredFile}.`);
 }
 const extractedBytes = [...files.values()].reduce((total, bytes) => total + bytes.byteLength, 0);
@@ -90,6 +101,9 @@ if (extractedBytes > MAX_EXTRACTED_BYTES) throw new Error("Selected GTFS files e
 
 const routes = csv(files.get("routes.txt"), "routes.txt");
 const stops = csv(files.get("stops.txt"), "stops.txt");
+const trips = csv(files.get("trips.txt"), "trips.txt");
+const calendars = csv(files.get("calendar.txt"), "calendar.txt");
+const exceptions = files.has("calendar_dates.txt") ? csv(files.get("calendar_dates.txt"), "calendar_dates.txt") : [];
 const feedInfo = files.has("feed_info.txt") ? csv(files.get("feed_info.txt"), "feed_info.txt")[0] ?? {} : {};
 const routeIds = new Set();
 const stopIds = new Set();
@@ -131,6 +145,28 @@ const stopRows = stops.map((record) => {
   };
 });
 
+const railRouteIds = new Set(routeRows.filter((route) => route.routeType === 0).map((route) => route.routeId));
+const railTrips = new Map(trips.filter((record) => railRouteIds.has(record.route_id?.trim())).map((record) => [required(record, "trip_id", "trips.txt"), {
+  routeId: required(record, "route_id", "trips.txt"),
+  serviceId: required(record, "service_id", "trips.txt"),
+  headsign: optional(record, "trip_headsign"),
+}]));
+const railStopTimes = [];
+const stopTimesBytes = files.get("stop_times.txt");
+const chunks = function* () {
+  for (let index = 0; index < stopTimesBytes.length; index += 64 * 1024) yield stopTimesBytes.subarray(index, index + 64 * 1024);
+};
+for await (const record of Readable.from(chunks()).pipe(parseStream({ bom: true, columns: true, trim: true }))) {
+  const tripId = record.trip_id?.trim();
+  const trip = railTrips.get(tripId);
+  if (!trip || record.pickup_type?.trim() === "1") continue;
+  const stopId = required(record, "stop_id", "stop_times.txt");
+  if (!stopIds.has(stopId)) throw new Error(`stop_times.txt references unknown stop ${stopId}.`);
+  const departureSeconds = gtfsSeconds(record.departure_time ?? record.arrival_time);
+  if (departureSeconds == null) continue;
+  railStopTimes.push({ ...trip, tripId, stopId, stopSequence: integer(record, "stop_sequence", "stop_times.txt", true), departureSeconds, headsign: optional(record, "stop_headsign") ?? trip.headsign });
+}
+
 const digest = createHash("sha256").update(zipBytes).digest("hex");
 const datasetId = `metro-${digest.slice(0, 16)}`;
 const importedAt = new Date().toISOString();
@@ -139,6 +175,9 @@ const statements = [
   `INSERT OR REPLACE INTO gtfs_datasets (dataset_id, source_sha256, import_schema_version, feed_version, feed_start_date, feed_end_date, imported_at, route_count, stop_count) VALUES (${sql(datasetId)}, ${sql(digest)}, ${sql(IMPORT_SCHEMA_VERSION)}, ${sql(optional(feedInfo, "feed_version"))}, ${sql(optional(feedInfo, "feed_start_date"))}, ${sql(optional(feedInfo, "feed_end_date"))}, ${sql(importedAt)}, ${routeRows.length}, ${stopRows.length});`,
   `DELETE FROM gtfs_routes WHERE dataset_id = ${sql(datasetId)};`,
   `DELETE FROM gtfs_stops WHERE dataset_id = ${sql(datasetId)};`,
+  `DELETE FROM gtfs_rail_stop_times WHERE dataset_id = ${sql(datasetId)};`,
+  `DELETE FROM gtfs_service_calendar WHERE dataset_id = ${sql(datasetId)};`,
+  `DELETE FROM gtfs_service_exceptions WHERE dataset_id = ${sql(datasetId)};`,
 ];
 
 for (const route of routeRows) {
@@ -147,8 +186,18 @@ for (const route of routeRows) {
 for (const stop of stopRows) {
   statements.push(`INSERT INTO gtfs_stops (dataset_id, stop_id, stop_code, stop_name, stop_desc, stop_lat, stop_lon, zone_id, stop_url, location_type, parent_station, stop_timezone, wheelchair_boarding) VALUES (${sql(datasetId)}, ${sql(stop.stopId)}, ${sql(stop.code)}, ${sql(stop.name)}, ${sql(stop.description)}, ${stop.latitude}, ${stop.longitude}, ${sql(stop.zoneId)}, ${sql(stop.url)}, ${stop.locationType ?? "NULL"}, ${sql(stop.parentStation)}, ${sql(stop.timezone)}, ${stop.wheelchairBoarding ?? "NULL"});`);
 }
+for (const record of calendars) {
+  statements.push(`INSERT INTO gtfs_service_calendar (dataset_id, service_id, start_date, end_date, sunday, monday, tuesday, wednesday, thursday, friday, saturday) VALUES (${sql(datasetId)}, ${sql(required(record, "service_id", "calendar.txt"))}, ${sql(required(record, "start_date", "calendar.txt"))}, ${sql(required(record, "end_date", "calendar.txt"))}, ${["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => integer(record, day, "calendar.txt", true)).join(", ")});`);
+}
+for (const record of exceptions) {
+  statements.push(`INSERT INTO gtfs_service_exceptions (dataset_id, service_id, service_date, exception_type) VALUES (${sql(datasetId)}, ${sql(required(record, "service_id", "calendar_dates.txt"))}, ${sql(required(record, "date", "calendar_dates.txt"))}, ${integer(record, "exception_type", "calendar_dates.txt", true)});`);
+}
+for (let index = 0; index < railStopTimes.length; index += 100) {
+  const values = railStopTimes.slice(index, index + 100).map((row) => `(${sql(datasetId)}, ${sql(row.routeId)}, ${sql(row.serviceId)}, ${sql(row.tripId)}, ${sql(row.stopId)}, ${row.stopSequence}, ${row.departureSeconds}, ${sql(row.headsign)})`).join(",");
+  statements.push(`INSERT INTO gtfs_rail_stop_times (dataset_id, route_id, service_id, trip_id, stop_id, stop_sequence, departure_seconds, headsign) VALUES ${values};`);
+}
 statements.push(`UPDATE gtfs_state SET active_dataset_id = ${sql(datasetId)} WHERE singleton_id = 1;`);
 
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${statements.join("\n")}\n`, "utf8");
-console.log(JSON.stringify({ output, datasetId, routeCount: routeRows.length, stopCount: stopRows.length, sourceSha256: digest }, null, 2));
+console.log(JSON.stringify({ output, datasetId, routeCount: routeRows.length, stopCount: stopRows.length, railStopTimeCount: railStopTimes.length, sourceSha256: digest }, null, 2));

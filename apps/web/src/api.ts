@@ -16,7 +16,7 @@ export const arrivalSchema = z.object({
 const stopSearchSchema = z.object({ stops: z.array(stopSchema) });
 const routeSearchSchema = z.object({ routes: z.array(routeSchema) });
 const arrivalsSchema = z.object({
-  stopId: z.string(), arrivals: z.array(arrivalSchema), source: z.object({
+  stopId: z.string(), arrivals: z.array(arrivalSchema), coverage: z.object({ routeTripUpdates: z.boolean().nullable(), stopTimeUpdates: z.boolean().nullable() }), schedule: z.object({ arrivals: z.array(z.object({ tripId: z.string(), routeId: z.string(), stopId: z.string(), scheduledAt: z.string(), headsign: z.string().nullable() })), source: z.object({ datasetVersion: z.string().nullable().optional() }).passthrough() }).nullable(), source: z.object({
     retrievedAt: z.string(), feedTimestamp: z.string().nullable().optional(), isStale: z.boolean().nullable().optional(),
   }).passthrough(),
 });
@@ -40,8 +40,10 @@ async function get<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal):
   return schema.parse(payload);
 }
 
-export async function searchStops(query: string, signal?: AbortSignal): Promise<Stop[]> {
-  return (await get(`/api/stops/search?q=${encodeURIComponent(query)}&limit=6`, stopSearchSchema, signal)).stops;
+export async function searchStops(query: string, signal?: AbortSignal, railRouteId?: string): Promise<Stop[]> {
+  const params = new URLSearchParams({ q: query, limit: "6" });
+  if (railRouteId) params.set("railRouteId", railRouteId);
+  return (await get(`/api/stops/search?${params}`, stopSearchSchema, signal)).stops;
 }
 
 export async function searchRoutes(query: string, signal?: AbortSignal): Promise<Route[]> {
