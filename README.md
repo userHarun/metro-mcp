@@ -59,23 +59,24 @@ Restart Claude Desktop after saving the configuration.
 
 ## Cursor
 
-Add the same local command to `.cursor/mcp.json` in a project or to Cursor’s global MCP configuration:
+Create `.cursor/mcp.json` in the cloned repository. Cursor can resolve the repository path and API key from its supported configuration variables:
 
 ```json
 {
   "mcpServers": {
     "houston-metro": {
+      "type": "stdio",
       "command": "node",
-      "args": ["C:/absolute/path/to/metro-mcp/apps/cli/dist/index.js"],
+      "args": ["${workspaceFolder}/apps/cli/dist/index.js"],
       "env": {
-        "METRO_GTFS_API_KEY": "YOUR_METRO_API_KEY"
+        "METRO_GTFS_API_KEY": "${env:METRO_GTFS_API_KEY}"
       }
     }
   }
 }
 ```
 
-Enable the server in Cursor’s MCP settings after saving the file.
+Set `METRO_GTFS_API_KEY` in your environment, then enable the server in Cursor’s MCP settings.
 
 ## First use
 

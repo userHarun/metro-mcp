@@ -1,8 +1,9 @@
 import * as Tabs from "@radix-ui/react-tabs";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ArrowUpRight, Check, Clipboard, Github, Moon, Network, Sun, TerminalSquare, TrainFront } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getConfig } from "./api";
+import { installationCopy, mcpClientConfigs } from "./install-config";
 import { Showcase } from "./Showcase";
 
 function CopyButton({ value }: { value: string }) {
@@ -37,11 +38,6 @@ export function App() {
   useEffect(() => {
     void getConfig().then((config) => { if (config.githubUrl) setGithubUrl(config.githubUrl); }).catch(() => undefined);
   }, []);
-
-  const snippets = useMemo(() => ({
-    claude: JSON.stringify({ mcpServers: { "houston-metro": { command: "node", args: ["C:/path/to/metro-mcp/apps/cli/dist/index.js"], env: { METRO_GTFS_API_KEY: "YOUR_METRO_API_KEY" } } } }, null, 2),
-    cursor: JSON.stringify({ mcpServers: { "houston-metro": { command: "node", args: ["C:/path/to/metro-mcp/apps/cli/dist/index.js"], env: { METRO_GTFS_API_KEY: "YOUR_METRO_API_KEY" } } } }, null, 2),
-  }), []);
 
   function toggleTheme() {
     const next = !dark;
@@ -79,11 +75,17 @@ export function App() {
         </section>
 
         <section className="content-section install-section" id="install">
-          <div className="section-heading"><div><p className="eyebrow">Installation</p><h2>Connect the local MCP.</h2><p>After cloning and building the project, add its local command to your MCP client.</p></div></div>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">{installationCopy.eyebrow}</p>
+              <h2>{installationCopy.heading}</h2>
+              <p>{installationCopy.description}</p>
+            </div>
+          </div>
           <Tabs.Root className="install-tabs" defaultValue="claude">
             <Tabs.List className="tab-list" aria-label="MCP client configuration"><Tabs.Trigger value="claude">Claude Desktop</Tabs.Trigger><Tabs.Trigger value="cursor">Cursor</Tabs.Trigger></Tabs.List>
-            <Tabs.Content value="claude"><CodePanel value={snippets.claude} /><p className="config-note">Add this object to Claude Desktop’s MCP configuration, then restart the app.</p></Tabs.Content>
-            <Tabs.Content value="cursor"><CodePanel value={snippets.cursor} /><p className="config-note">Add this local command to your project or global Cursor MCP configuration.</p></Tabs.Content>
+            <Tabs.Content value="claude"><CodePanel value={mcpClientConfigs.claude} /><p className="config-note">Save this in <code>claude_desktop_config.json</code>, then fully restart Claude Desktop.</p></Tabs.Content>
+            <Tabs.Content value="cursor"><CodePanel value={mcpClientConfigs.cursor} /><p className="config-note">Save this as <code>.cursor/mcp.json</code> in the cloned repository and set <code>METRO_GTFS_API_KEY</code> in your environment.</p></Tabs.Content>
           </Tabs.Root>
         </section>
 
