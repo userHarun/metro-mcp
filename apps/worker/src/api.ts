@@ -1,5 +1,6 @@
 import { MetroError, toMetroError, type MetroDataProvider } from "@metro/core";
 import { z } from "zod";
+import type { WorkerEnv } from "./env.js";
 
 const routeSearchSchema = z.object({ query: z.string().trim().min(1).max(80), limit: z.coerce.number().int().min(1).max(20).default(10) });
 const stopSearchSchema = z.object({ query: z.string().trim().min(2).max(100), limit: z.coerce.number().int().min(1).max(20).default(10) });
@@ -30,7 +31,7 @@ function query(url: URL): Record<string, string | undefined> {
   return Object.fromEntries(url.searchParams.entries());
 }
 
-export async function handleApi(request: Request, env: Env, provider: MetroDataProvider, requestId: string): Promise<Response> {
+export async function handleApi(request: Request, env: WorkerEnv, provider: MetroDataProvider, requestId: string): Promise<Response> {
   const url = new URL(request.url);
   if (request.method !== "GET") return json({ error: "method_not_allowed", message: "This endpoint is read-only.", requestId }, { status: 405, headers: { Allow: "GET" } });
 

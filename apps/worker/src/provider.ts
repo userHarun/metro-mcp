@@ -6,8 +6,9 @@ import {
   type MetroLogger,
 } from "@metro/core";
 import { findNearbyStops, getCatalogReadiness, getRoute, getStop, searchRoutes, searchStops } from "./catalog.js";
+import type { WorkerEnv } from "./env.js";
 
-export function createWorkerProvider(env: Env, requestId: string, logger: MetroLogger): MetroDataProvider {
+export function createWorkerProvider(env: WorkerEnv, requestId: string, logger: MetroLogger): MetroDataProvider {
   const liveClient = createMetroLiveClient({
     baseUrl: env.METRO_API_BASE_URL,
     apiKey: env.METRO_GTFS_API_KEY,

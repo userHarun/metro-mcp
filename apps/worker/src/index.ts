@@ -1,5 +1,6 @@
 import type { MetroLogger } from "@metro/core";
 import { handleApi } from "./api.js";
+import type { WorkerEnv } from "./env.js";
 import { createWorkerProvider } from "./provider.js";
 
 function loggerFor(requestId: string): MetroLogger {
@@ -9,7 +10,7 @@ function loggerFor(requestId: string): MetroLogger {
   };
 }
 
-async function enforceRateLimit(request: Request, env: Env): Promise<Response | null> {
+async function enforceRateLimit(request: Request, env: WorkerEnv): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/")) return null;
   const actor = request.headers.get("CF-Connecting-IP") ?? request.headers.get("User-Agent") ?? "anonymous";
@@ -22,7 +23,7 @@ async function enforceRateLimit(request: Request, env: Env): Promise<Response | 
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
     const requestId = request.headers.get("CF-Ray") ?? crypto.randomUUID();
     const logger = loggerFor(requestId);
@@ -39,4 +40,4 @@ export default {
       return Response.json({ error: "internal_error", message: "The request could not be completed.", requestId }, { status: 500 });
     }
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<WorkerEnv>;
