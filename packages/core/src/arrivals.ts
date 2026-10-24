@@ -23,13 +23,16 @@ export async function getNormalizedArrivals(
   client: MetroLiveClient,
   options: { stopId: string; routeId?: string | undefined; limit: number; nowMs?: number | undefined },
 ): Promise<ArrivalsResult> {
-  const response = await client.getTripUpdatesBytes();
-  let feed: GtfsRealtimeBindings.transit_realtime.FeedMessage;
-  try {
-    feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(response.data);
-  } catch (error: unknown) {
-    throw new MetroError("invalid_response", "METRO returned malformed GTFS Realtime data.", { cause: error });
-  }
+  const response = client.getTripUpdatesFeed
+    ? await client.getTripUpdatesFeed()
+    : await client.getTripUpdatesBytes().then((raw) => {
+      try {
+        return { ...raw, data: GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(raw.data) };
+      } catch {
+        throw new MetroError("invalid_response", "METRO returned malformed GTFS Realtime data.");
+      }
+    });
+  const feed = response.data;
 
   const nowMs = options.nowMs ?? Date.now();
   const cutoffMs = nowMs - 60_000;

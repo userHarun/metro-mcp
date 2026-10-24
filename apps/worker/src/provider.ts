@@ -1,5 +1,6 @@
 import {
   createMetroLiveClient,
+  MetroLiveCache,
   getNormalizedAlerts,
   getNormalizedArrivals,
   type MetroDataProvider,
@@ -8,12 +9,18 @@ import {
 import { findNearbyStops, getCatalogReadiness, getRoute, getStop, searchRoutes, searchStops } from "./catalog.js";
 import type { WorkerEnv } from "./env.js";
 
+let liveCache: MetroLiveCache | null = null;
+
 export function createWorkerProvider(env: WorkerEnv, requestId: string, logger: MetroLogger): MetroDataProvider {
+  if (!liveCache || liveCache.baseUrl !== env.METRO_API_BASE_URL || liveCache.apiKey !== env.METRO_GTFS_API_KEY) {
+    liveCache = new MetroLiveCache(env.METRO_API_BASE_URL, env.METRO_GTFS_API_KEY);
+  }
   const liveClient = createMetroLiveClient({
     baseUrl: env.METRO_API_BASE_URL,
     apiKey: env.METRO_GTFS_API_KEY,
     requestId,
     logger,
+    cache: liveCache,
   });
 
   return {
@@ -21,7 +28,10 @@ export function createWorkerProvider(env: WorkerEnv, requestId: string, logger: 
     searchStops: (options) => searchStops(env.GTFS_DB, options),
     findNearbyStops: (options) => findNearbyStops(env.GTFS_DB, options),
     getNextArrivals: (options) => getNormalizedArrivals(liveClient, options),
-    getServiceAlerts: ({ routeId }) => getNormalizedAlerts(liveClient, routeId),
+    getServiceAlerts: async ({ routeId }) => {
+      const route = routeId ? await getRoute(env.GTFS_DB, routeId) : null;
+      return getNormalizedAlerts(liveClient, { routeId, routeName: route?.longName ?? undefined });
+    },
     getRoute: (routeId) => getRoute(env.GTFS_DB, routeId),
     getStop: (stopId) => getStop(env.GTFS_DB, stopId),
     getDataSources: async () => {

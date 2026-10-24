@@ -38,7 +38,10 @@ export function createLocalMetroProvider(options: LocalMetroProviderOptions): Me
     searchStops: (input) => catalog.searchStops(input),
     findNearbyStops: (input) => catalog.findNearbyStops(input),
     getNextArrivals: (input) => getNormalizedArrivals(liveClient, input),
-    getServiceAlerts: ({ routeId }) => getNormalizedAlerts(liveClient, routeId),
+    getServiceAlerts: async ({ routeId }) => {
+      const route = routeId ? await catalog.getRoute(routeId) : null;
+      return getNormalizedAlerts(liveClient, { routeId, routeName: route?.longName ?? undefined });
+    },
     getRoute: (routeId) => catalog.getRoute(routeId),
     getStop: (stopId) => catalog.getStop(stopId),
     getDataSources: async () => {

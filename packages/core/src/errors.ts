@@ -19,7 +19,7 @@ export class MetroError extends Error {
     message: string,
     options: { status?: number; requestId?: string | null; cause?: unknown } = {},
   ) {
-    super(message, { cause: options.cause });
+    super(message);
     this.name = "MetroError";
     this.code = code;
     this.status = options.status ?? statusForCode(code);

@@ -75,10 +75,14 @@ async function loadArchive(input) {
 const input = argument("--input", DEFAULT_URL);
 const output = resolve(argument("--output", "tmp/gtfs/static-gtfs-import.sql"));
 const zipBytes = await loadArchive(input);
+let selectedBytes = 0;
 const archive = unzipSync(zipBytes, {
   filter(file) {
     const name = basename(file.name).toLowerCase();
-    return name === "routes.txt" || name === "stops.txt" || name === "feed_info.txt";
+    if (name !== "routes.txt" && name !== "stops.txt" && name !== "feed_info.txt") return false;
+    selectedBytes += file.originalSize;
+    if (selectedBytes > MAX_EXTRACTED_BYTES) throw new Error("Selected GTFS files exceed the configured extracted size limit.");
+    return true;
   },
 });
 const files = new Map(Object.entries(archive).map(([name, bytes]) => [basename(name).toLowerCase(), bytes]));
