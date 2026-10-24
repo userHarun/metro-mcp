@@ -80,7 +80,9 @@ Set `METRO_GTFS_API_KEY` in your environment, then enable the server in Cursor�
 
 ## First use
 
-The first route or stop request downloads METRO’s official Static GTFS archive and stores it in a local cache. Later sessions reuse that cache and refresh it automatically. Realtime arrival and alert requests go directly to METRO using your API key.
+The first route or stop request downloads METRO’s official Static GTFS archive and stores it in a local cache. Later sessions reuse that cache. A long-running session refreshes an expired catalog in the background and continues serving the last valid catalog if the refresh fails. Realtime arrival and alert requests use your API key and share a 15-second feed cache within the running process.
+
+Arrival results include only stop updates with an absolute arrival or departure time. METRO updates containing only a delay cannot be converted to a predicted time until scheduled stop times are available. Route-specific alert matching uses the route name when METRO's alert IDs differ from Static GTFS route IDs.
 
 You do not need to start a website, Worker, database, or separate background service. Your MCP client launches and stops the local process automatically.
 

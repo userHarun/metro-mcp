@@ -2,24 +2,13 @@ import type { MetroLogger } from "@metro/core";
 import { handleApi } from "./api.js";
 import type { WorkerEnv } from "./env.js";
 import { createWorkerProvider } from "./provider.js";
+import { enforceRateLimit } from "./rate-limit.js";
 
 function loggerFor(requestId: string): MetroLogger {
   return {
     log(fields) { console.log(JSON.stringify({ ...fields, requestId })); },
     error(fields) { console.error(JSON.stringify({ ...fields, requestId })); },
   };
-}
-
-async function enforceRateLimit(request: Request, env: WorkerEnv): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (!url.pathname.startsWith("/api/")) return null;
-  const actor = request.headers.get("CF-Connecting-IP") ?? request.headers.get("User-Agent") ?? "anonymous";
-  const result = await env.PUBLIC_RATE_LIMITER.limit({ key: `${url.pathname.split("/")[1]}:${actor}` });
-  if (result.success) return null;
-  return Response.json(
-    { error: "rate_limited", message: "Too many requests. Try again shortly." },
-    { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } },
-  );
 }
 
 export default {
@@ -36,7 +25,7 @@ export default {
       if (url.pathname.startsWith("/api/")) return await handleApi(request, env, provider, requestId);
       return await env.ASSETS.fetch(request);
     } catch (error: unknown) {
-      logger.error({ event: "unhandled_request_error", path: url.pathname, error: error instanceof Error ? error.message : "unknown" });
+      logger.error({ event: "unhandled_request_error", path: url.pathname, error: error instanceof Error ? error.name : "unknown" });
       return Response.json({ error: "internal_error", message: "The request could not be completed.", requestId }, { status: 500 });
     }
   },

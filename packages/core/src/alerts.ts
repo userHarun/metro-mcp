@@ -64,15 +64,24 @@ function normalizeAlert(alert: MetroAlert): ServiceAlert {
   };
 }
 
-export async function getNormalizedAlerts(client: MetroLiveClient, routeId?: string): Promise<AlertsResult> {
+export async function getNormalizedAlerts(
+  client: MetroLiveClient,
+  filter: { routeId?: string | undefined; routeName?: string | undefined; nowMs?: number | undefined } = {},
+): Promise<AlertsResult> {
   const response = await client.getAlertsJson();
   const parsed = responseSchema.safeParse(response.data);
   if (!parsed.success) {
     throw new MetroError("invalid_response", "METRO returned an invalid alerts payload.");
   }
+  const nowMs = filter.nowMs ?? Date.now();
   const alerts = parsed.data.alerts
     .map(normalizeAlert)
-    .filter((alert) => !routeId || alert.affectedRoutes.some((route) => route.routeId === routeId))
+    .filter((alert) => alert.activePeriods.length === 0 || alert.activePeriods.some((period) =>
+      (period.startsAt == null || Date.parse(period.startsAt) <= nowMs)
+      && (period.endsAt == null || Date.parse(period.endsAt) > nowMs)))
+    .filter((alert) => !filter.routeId || alert.affectedRoutes.some((route) =>
+      route.routeId === filter.routeId
+      || (filter.routeName != null && route.routeName?.trim().toLowerCase() === filter.routeName.trim().toLowerCase())))
     .sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
   return {
     alerts,

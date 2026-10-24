@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { parse } from "csv-parse/sync";
 import { unzipSync } from "fflate";
@@ -164,6 +164,7 @@ export class LocalGtfsCatalog {
   readonly #options: LocalCatalogOptions;
   #state: CatalogState | null = null;
   #loading: Promise<CatalogState> | null = null;
+  #nextRefreshAt = 0;
 
   constructor(options: LocalCatalogOptions) {
     this.#options = options;
@@ -192,42 +193,67 @@ export class LocalGtfsCatalog {
     return bytes;
   }
 
-  async #loadBytes(): Promise<{ bytes: Uint8Array; loadedFromCache: boolean }> {
+  async #initialize(forceRefresh = false): Promise<CatalogState> {
     const now = this.#options.now?.() ?? Date.now();
     const maxAge = this.#options.refreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL_MS;
-    let cached: Uint8Array | null = null;
-    let cacheIsFresh = false;
-    try {
-      const [bytes, details] = await Promise.all([readFile(this.#options.archivePath), stat(this.#options.archivePath)]);
-      cached = new Uint8Array(bytes);
-      cacheIsFresh = cached.byteLength > 0 && cached.byteLength <= MAX_ZIP_BYTES && now - details.mtimeMs <= maxAge;
-    } catch {
-      cached = null;
+    let cached: CatalogState | null = forceRefresh ? this.#state : null;
+    let cacheMtime = 0;
+    if (!forceRefresh) {
+      try {
+        const details = await stat(this.#options.archivePath);
+        if (details.size > 0 && details.size <= MAX_ZIP_BYTES) {
+          const bytes = await readFile(this.#options.archivePath);
+          if (bytes.byteLength > MAX_ZIP_BYTES) throw new MetroError("invalid_response", "The METRO Static GTFS archive is larger than allowed.");
+          cached = this.#parseArchive(new Uint8Array(bytes), true);
+          cacheMtime = details.mtimeMs;
+        }
+      } catch (error: unknown) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+          this.#options.logger.error({ event: "static_gtfs_cache_invalid" });
+        }
+      }
     }
-    if (cached && cacheIsFresh) return { bytes: cached, loadedFromCache: true };
+    if (cached && !forceRefresh && now - cacheMtime <= maxAge) {
+      this.#nextRefreshAt = cacheMtime + maxAge;
+      return cached;
+    }
 
     try {
       const bytes = await this.#download();
+      const state = this.#parseArchive(bytes, false);
       await mkdir(dirname(this.#options.archivePath), { recursive: true });
-      await writeFile(this.#options.archivePath, bytes);
-      return { bytes, loadedFromCache: false };
+      const tempPath = `${this.#options.archivePath}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(tempPath, bytes, { flag: "wx" });
+        await rename(tempPath, this.#options.archivePath);
+      } finally {
+        await unlink(tempPath).catch(() => undefined);
+      }
+      this.#nextRefreshAt = (this.#options.now?.() ?? Date.now()) + maxAge;
+      return state;
     } catch (error: unknown) {
       if (cached) {
         this.#options.logger.error({ event: "static_gtfs_refresh_failed", fallback: "stale_cache" });
-        return { bytes: cached, loadedFromCache: true };
+        this.#nextRefreshAt = (this.#options.now?.() ?? Date.now()) + Math.min(maxAge, 60_000);
+        return cached;
       }
       throw error;
     }
   }
 
-  async #initialize(): Promise<CatalogState> {
-    const { bytes, loadedFromCache } = await this.#loadBytes();
+  #parseArchive(bytes: Uint8Array, loadedFromCache: boolean): CatalogState {
     let extracted: Record<string, Uint8Array>;
+    let selectedBytes = 0;
     try {
       extracted = unzipSync(bytes, {
         filter(file) {
           const name = basename(file.name).toLowerCase();
-          return name === "routes.txt" || name === "stops.txt" || name === "feed_info.txt";
+          if (name !== "routes.txt" && name !== "stops.txt" && name !== "feed_info.txt") return false;
+          selectedBytes += file.originalSize;
+          if (selectedBytes > MAX_EXTRACTED_BYTES) {
+            throw new MetroError("invalid_response", "The METRO Static GTFS archive is larger than allowed.");
+          }
+          return true;
         },
       });
     } catch (error: unknown) {
@@ -292,15 +318,29 @@ export class LocalGtfsCatalog {
   }
 
   async #requireState(): Promise<CatalogState> {
-    if (this.#state) return this.#state;
+    if (this.#state) {
+      const now = this.#options.now?.() ?? Date.now();
+      if (now >= this.#nextRefreshAt && !this.#loading) {
+        this.#loading = this.#initialize(true).then((state) => {
+          this.#state = state;
+          return state;
+        }).catch(() => {
+          this.#nextRefreshAt = (this.#options.now?.() ?? Date.now()) + Math.min(this.#options.refreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL_MS, 60_000);
+          this.#options.logger.error({ event: "static_gtfs_refresh_failed", fallback: "in_memory_catalog" });
+          return this.#state as CatalogState;
+        }).finally(() => { this.#loading = null; });
+      }
+      return this.#state;
+    }
     this.#loading ??= this.#initialize();
     try {
       this.#state = await this.#loading;
       return this.#state;
     } catch (error: unknown) {
-      this.#loading = null;
       if (error instanceof MetroError) throw error;
       throw new MetroError("catalog_not_ready", "The local Static GTFS catalog is not ready.", { cause: error });
+    } finally {
+      this.#loading = null;
     }
   }
 
